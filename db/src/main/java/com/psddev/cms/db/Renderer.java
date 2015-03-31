@@ -8,6 +8,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -25,6 +26,7 @@ import com.psddev.dari.db.Recordable;
 import com.psddev.dari.util.CompactMap;
 import com.psddev.dari.util.HtmlWriter;
 import com.psddev.dari.util.ObjectUtils;
+import com.psddev.dari.util.StringUtils;
 
 public interface Renderer extends Recordable {
 
@@ -68,6 +70,9 @@ public interface Renderer extends Recordable {
         private String embedPath;
         private int embedPreviewWidth;
 
+        private String viewModelClassName;
+        private Map<String, String> contextAndViewModelClasses;
+
         // Returns the legacy rendering JSP.
         private String getDefaultRecordJsp() {
             return (String) getState().get("cms.defaultRecordJsp");
@@ -95,7 +100,7 @@ public interface Renderer extends Recordable {
          * Returns the default servlet path used to render instances of this
          * type.
          *
-         * @param path May be {@code nul}.
+         * @param path May be {@code null}.
          */
         public void setPath(String path) {
             this.path = path;
@@ -182,6 +187,22 @@ public interface Renderer extends Recordable {
             }
 
             return getPath();
+        }
+
+        public String getViewModelClassName() {
+            return viewModelClassName;
+        }
+
+        public void setViewModelClassName(String viewModelClassName) {
+            this.viewModelClassName = viewModelClassName;
+        }
+
+        public Map<String, String> getContextAndViewModelClasses() {
+            return contextAndViewModelClasses;
+        }
+
+        public void setContextAndViewModelClasses(Map<String, String> contextAndViewModelClasses) {
+            this.contextAndViewModelClasses = contextAndViewModelClasses;
         }
 
         // --- Deprecated ---
@@ -330,6 +351,23 @@ public interface Renderer extends Recordable {
         ListLayout[] map() default { };
     }
 
+    @Inherited
+    @ObjectType.AnnotationProcessorClass(ViewModelBindingProcessor.class)
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    public @interface ViewModelBinding {
+        Class<?> value();
+        String context() default "";
+    }
+
+    @Inherited
+    @ObjectType.AnnotationProcessorClass(ViewModelBindingsProcessor.class)
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    public @interface ViewModelBindings {
+        ViewModelBinding[] value();
+    }
+
     // --- Deprecated ---
 
     /** @deprecated No replacement. */
@@ -424,6 +462,30 @@ class ListLayoutsProcessor implements ObjectField.AnnotationProcessor<Renderer.L
                 layoutItems.add(itemClass.getName());
             }
         }
+    }
+}
+
+class ViewModelBindingProcessor implements ObjectType.AnnotationProcessor<Renderer.ViewModelBinding> {
+    @Override
+    public void process(ObjectType type, Renderer.ViewModelBinding annotation) {
+        Renderer.TypeModification rendererData = type.as(Renderer.TypeModification.class);
+        Map<String, String> viewModels = rendererData.getContextAndViewModelClasses();
+        Class<?> value = annotation.value();
+        String context = annotation.context();
+
+        if (StringUtils.isBlank(context)) {
+            rendererData.setViewModelClassName(value.getCanonicalName());
+        } else {
+            viewModels.put(context, value.getCanonicalName());
+        }
+    }
+}
+
+class ViewModelBindingsProcessor implements ObjectType.AnnotationProcessor<Renderer.ViewModelBindings> {
+    @Override
+    public void process(ObjectType type, Renderer.ViewModelBindings viewModelBindings) {
+        ViewModelBindingProcessor bindingProcessor = new ViewModelBindingProcessor();
+        Arrays.asList(viewModelBindings.value()).forEach((annotation) -> bindingProcessor.process(type, annotation));
     }
 }
 
