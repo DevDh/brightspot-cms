@@ -1,5 +1,9 @@
 package com.psddev.cms.db;
 
+import javax.servlet.ServletContext;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
 import com.psddev.dari.db.Recordable;
 import com.psddev.dari.db.State;
 import com.psddev.dari.util.ClassFinder;
@@ -30,11 +34,9 @@ public abstract class ViewModel<T extends Recordable> {
 
     public static class Static {
 
-        public static ViewModel<? extends Recordable> getInstance(WebPageContext page, Object object) {
-            return getInstance(page, object, null);
-        }
+        public static ViewModel<? extends Recordable> getInstance(HttpServletRequest request, HttpServletResponse response) {
 
-        public static ViewModel<? extends Recordable> getInstance(WebPageContext page, Object object, String context) {
+            Object object = request.getAttribute("object");
 
             if (object == null || !(object instanceof Recordable)) {
                 return null;
@@ -42,6 +44,7 @@ public abstract class ViewModel<T extends Recordable> {
 
             Recordable recordable = (Recordable) object;
             Renderer.TypeModification rendererData = State.getInstance(object).getType().as(Renderer.TypeModification.class);
+            String context = request.getAttribute("context") != null ? request.getAttribute("context").toString() : null;
 
             if (rendererData == null) {
                 return null;
@@ -71,10 +74,9 @@ public abstract class ViewModel<T extends Recordable> {
             }
 
             viewModel.setModel(recordable);
-            viewModel.setWebPageContext(page);
+            viewModel.setWebPageContext(new WebPageContext((ServletContext) null, request, response));
             return viewModel;
         }
-
     }
 
 }
